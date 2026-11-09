@@ -50,7 +50,7 @@ static const int PIN_UH = 19;
 static const int PIN_UL = 18;
 static const int PIN_VH = 17;
 static const int PIN_VL = 16;
-static const int PIN_WH = 15; // GPIO15 e strapping; confira o nivel externo durante reset/boot.
+static const int PIN_WH = 32; // GPIO15 e strapping; confira o nivel externo durante reset/boot.
 static const int PIN_WL = 14;
 static const int PWM_PINS[6] = {PIN_UH, PIN_UL, PIN_VH, PIN_VL, PIN_WH, PIN_WL};
 
