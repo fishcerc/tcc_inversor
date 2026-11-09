@@ -338,12 +338,24 @@ void updateControl() {
     // ----------------------------------------------------
 
     float dt = elapsed / 1000.0f;
-    float step = RAMPA_HZ_S * dt;
+        float step = RAMPA_HZ_S * dt;
 
-    float target = frequencySetpoint;
+        float target = frequencySetpoint;
 
-    // ... (o resto da lógica de inversão e rampa continua exatamente igual aqui para baixo)
+        // Lógica da Rampa de Aceleração/Desaceleração
+        if (frequencyActual < target) {
+            frequencyActual += step;
+            if (frequencyActual > target) frequencyActual = target;
+        } else if (frequencyActual > target) {
+            frequencyActual -= step;
+            if (frequencyActual < target) frequencyActual = target;
+        }
 
+        // Inversão de rotação só é permitida quando o motor parar (0 Hz)
+        if (frequencyActual <= 0.1f && (targetDirectionForward != currentDirectionForward)) {
+            currentDirectionForward = targetDirectionForward;
+        }
+} 
 // =====================================================
 // SETUP E INICIALIZAÇÃO GERAL
 // =====================================================
@@ -355,7 +367,7 @@ void setup() {
     Serial.println("ESP32 INVERSOR TCC - V/f Control");
     Serial.println("================================");
 
-    // 1. Pré-calcula a tabela de senos para não travar o processador depois
+    // 1. Pré-calcula a tabela de senos
     for (int i = 0; i < TAMANHO_TABELA; i++) {
         tabelaSeno[i] = sin((i * PI) / 180.0);
     }
@@ -363,7 +375,7 @@ void setup() {
     // 2. Inicia Wi-Fi AP
     WiFi.mode(WIFI_AP);
     if (WiFi.softAP(AP_SSID, AP_PASSWORD)) {
-        Serial.println("Wi-Fi iniciado: INVERSOR_TCC (Senha: 12345678)");
+        Serial.println("Wi-Fi iniciado: INVERSOR_TCC");
         Serial.print("IP para acesso: "); Serial.println(WiFi.softAPIP());
     }
 
@@ -374,9 +386,10 @@ void setup() {
     server.on("/frequency", HTTP_GET, handleFrequency);
     server.on("/direction", HTTP_GET, handleDirection);
     server.on("/status", HTTP_GET, handleStatus);
+    server.on("/mode", HTTP_GET, handleMode); // Estava faltando mapear a rota do Modo
     server.begin();
 
-    // 4. Configura Pinos do MCPWM (Hardware PWM do ESP32)
+    // 4. Configura Pinos do MCPWM (Usando a Unidade 0 para as 3 fases)
     mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, PWM_U_H);
     mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0B, PWM_U_L);
     mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM1A, PWM_V_H);
@@ -395,16 +408,16 @@ void setup() {
     mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_1, &pwm_config);
     mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_2, &pwm_config);
 
-    // 5. Configura DEAD-TIME (Crítico para módulo IPM IGBT)
-    // Isso impede que os pinos H e L de uma mesma fase fiquem HIGH ao mesmo tempo
-    mcpwm_deadtime_enable(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_ACTIVE_HIGH_COMPL, TEMPO_MORTO_US * 10, TEMPO_MORTO_US * 10);
-    mcpwm_deadtime_enable(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_ACTIVE_HIGH_COMPL, TEMPO_MORTO_US * 10, TEMPO_MORTO_US * 10);
-    mcpwm_deadtime_enable(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_ACTIVE_HIGH_COMPL, TEMPO_MORTO_US * 10, TEMPO_MORTO_US * 10);
+    // 5. Configura DEAD-TIME (Correção: ACTIVE_LOW para o 6N137 e Ticks calculados)
+    // 320 ticks @ 160MHz = exatos 2.0 microssegundos de dead-time real.
+    mcpwm_deadtime_enable(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_ACTIVE_LOW_COMPL, 320, 320);
+    mcpwm_deadtime_enable(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_ACTIVE_LOW_COMPL, 320, 320);
+    mcpwm_deadtime_enable(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_ACTIVE_LOW_COMPL, 320, 320);
 
-    // 6. Inicia a Interrupção do Timer 0 (Dispara a cada 100us -> 10 kHz)
-    timer = timerBegin(0, 80, true); // Prescaler 80 = 1 tick por 1us
+    // 6. Inicia a Interrupção do Timer
+    timer = timerBegin(0, 80, true);
     timerAttachInterrupt(timer, &onTimer, true);
-    timerAlarmWrite(timer, 100, true); // Alarme em 100 ticks (100us)
+    timerAlarmWrite(timer, 100, true); 
     timerAlarmEnable(timer);
 
     lastControlTime = millis();
