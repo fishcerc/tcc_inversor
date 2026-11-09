@@ -173,8 +173,23 @@ $('reverse').onclick=()=>{if(confirm('Confirme que o motor está fisicamente par
 $('reset').onclick=()=>{if(confirm('A emergência foi liberada e a saída está parada? Reiniciar o ESP32 limpa o latch do MCPWM.'))request('/reset');};
 async function poll(){
  try{
-  const r=await fetch('/status',{cache:'no-store'});const d=await r.json();
+  const r=await fetch('/status',{cache:'no-store'});
+  const d=await r.json();
+
   $('actual').textContent=Number(d.actual).toFixed(1);
+
+  // NOVO: sincroniza a frequência de referência
+  const setpoint = Number(d.setpoint);
+
+  if (
+      Number.isFinite(setpoint) &&
+      document.activeElement !== $('slider') &&
+      document.activeElement !== $('freqInput')
+  ) {
+      $('slider').value = setpoint;
+      $('freqInput').value = setpoint.toFixed(1);
+  }
+
   $('status').textContent=d.msg;
   $('status').className=d.fault?'status fault':'status';
   $('run').disabled=d.fault||!d.ready;
