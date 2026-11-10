@@ -57,6 +57,8 @@ static const int PIN_WH = 32; // GPIO32: pino de saida sem funcao de strapping n
 static const int PIN_WL = 14;
 static const int PWM_PINS[6] = {PIN_UH, PIN_UL, PIN_VH, PIN_VL, PIN_WH, PIN_WL};
 
+const int PIN_RELE = 23;
+
 // LCD 16x2 I2C: pinos padrao do ESP32 classico.
 static const uint8_t LCD_SDA_PIN = 21;
 static const uint8_t LCD_SCL_PIN = 22;
@@ -763,6 +765,8 @@ bool initializeMcpwm() {
 // ============================================================
 
 void setup() {
+    pinMode(PIN_RELE, OUTPUT);
+    digitalWrite(PIN_RELE, LOW); 
     Serial.begin(115200);
     delay(100);
     Serial.println();
@@ -774,6 +778,34 @@ void setup() {
     lcd.backlight();
     lcd.clear();
     Serial.println("LCD 16x2 I2C inicializado (endereco configurado em LCD_I2C_ADDRESS).");
+
+    //Rele de pré carga
+    Serial.println("Inicio da pre-carga");
+    Serial.println("Acionando rele de bypass");
+    lcd.setCursor(0, 0);
+    lcd.print("TCC - Carlos");
+
+    lcd.setCursor(0, 1);
+    lcd.print("5seg CC Link");
+
+    // Aguarda 5 segundos de pre-carga
+    delay(5000);
+
+    // Aciona o rele de bypass
+    digitalWrite(PIN_RELE, HIGH);
+
+    // Aguarda estabilizacao
+    delay(500);
+
+    // Atualiza LCD
+    lcd.clear();
+
+    lcd.setCursor(0, 0);
+    lcd.print("Barramento OK");
+
+    lcd.setCursor(0, 1);
+    lcd.print("Iniciando...");
+
 
     // Tabela normalizada: maximo de sin(x) + sin(3x)/6 = sqrt(3)/2.
     // Fator 2/sqrt(3) = 1.1547005 normaliza o pico para +/-1.
